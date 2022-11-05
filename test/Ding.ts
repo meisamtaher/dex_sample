@@ -58,7 +58,7 @@ describe("Ding Token", ()=>{
                 expect(await ding.balanceOf(owner.address)).to.equal(tokens(totalSupply-amount));
                 expect(await ding.balanceOf(otherAccount.address)).to.equal(tokens(amount));
             })
-            it("token emit transfer event",async ()=>{
+            it("emit transfer event correctly",async ()=>{
                 const amount = 10;
                 const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
                 await expect(ding.connect(owner).transfer(otherAccount.address, tokens(amount)))
@@ -72,8 +72,36 @@ describe("Ding Token", ()=>{
                 const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
                 await expect(ding.connect(owner).transfer(otherAccount.address, tokens(totalSupply +amount))).to.be.reverted
             })
+            it("reciever address can't be 0x0",async()=>{
+                const amount =10;
+                const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
+                await expect(ding.connect(owner).transfer('0x0000000000000000000000000000000000000000', tokens(amount))).to.be.reverted
+            })
         })
 
+    })
+    describe("Approve token", ()=>{
+        describe("Happy scenario", ()=>{
+            it("token spending approve", async()=>{
+                const amount =10;
+                const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
+                let transaction = await ding.connect(owner).approve(otherAccount.address,tokens(amount));
+                let result = await transaction.wait();
+                expect(await ding.allowance(owner.address, otherAccount.address)).to.equal(tokens(amount));
+            })
+            it("emit approve event correctly", async()=>{
+                const amount = 10;
+                const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
+                await expect(ding.connect(owner).approve(otherAccount.address, tokens(amount)))
+                .to.emit(ding,"Approval")
+                .withArgs(owner.address, otherAccount.address, tokens(amount));
+            })
+            it("spender address can't be 0x0",async()=>{
+                const amount =10;
+                const {ding,owner,otherAccount,totalSupply} = await loadFixture(deployDing);
+                await expect(ding.connect(owner).approve('0x0000000000000000000000000000000000000000', tokens(amount))).to.be.reverted
+            })
+        })
     })
 
 })
