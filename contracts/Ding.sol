@@ -29,22 +29,22 @@ contract Ding {
     }
     
     function approve(address _spender, uint256 _value) public returns (bool success){
-        require(_spender != address(0));
+        require(_spender != address(0),"spender can't be 0x0");
         allowance[msg.sender][_spender] = _value;
         emit Approval(msg.sender, _spender, _value);
         return true;
     }
 
     function transferFrom(address _from, address _to, uint256 _value) public returns (bool success){
-        require(allowance[_from][msg.sender] >= _value, "ERR11");
+        require(allowance[_from][msg.sender] >= _value, "not enough allowance");
         allowance[_from][msg.sender] = allowance[_from][msg.sender] - _value;
         _transfer(_from, _to, _value);
         return true;
     }
 
     function _transfer(address _from, address _to, uint256 _value) internal returns (bool sucess){
-        require(balanceOf[_from]>_value,"ERR12");
-        require(_to != address(0));
+        require(balanceOf[_from]>_value, "not enough balance");
+        require(_to != address(0), "reciever address can't be 0x0");
         balanceOf[_from] = balanceOf[_from] - _value;
         balanceOf[_to] = balanceOf[_to] + _value;
         emit Transfer(_from,_to,_value);
