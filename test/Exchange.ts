@@ -1,4 +1,5 @@
 import { time, loadFixture } from "@nomicfoundation/hardhat-network-helpers";
+import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 function tokens(n: number){
@@ -12,11 +13,12 @@ describe("Exchange", ()=>{
         const exchange = await Exchange.deploy(feeAccount.address, feePercentage);
         const Ding = await ethers.getContractFactory("Ding");
         const ding = await Ding.deploy("Ding Token", "DNG", "0.1.0", 1000000)
+        const ding2 = await Ding.deploy("Mock USDT", "mUSDT", "0.1.0", 1000000)
         const transaction = await ding.connect(owner).transfer(user1.address,tokens(100))
         await transaction.wait();
         const transaction2 = await ding.connect(owner).transfer(user2.address,tokens(100))
         await transaction2.wait();
-        return {exchange, Exchange, owner, user1, user2, feeAccount, feePercentage, Ding, ding}
+        return {exchange, Exchange, owner, user1, user2, feeAccount, feePercentage, Ding, ding,ding2}
     }
     
     describe("Deployment",()=>{
@@ -95,6 +97,39 @@ describe("Exchange", ()=>{
                 transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
                 await transaction.wait();
                 await expect(exchange.connect(user2).withdrawToken(ding.address, tokens(10))).to.be.reverted;
+            })
+        })
+    })
+    describe("Make order",()=>{
+        describe("Happy scenario",()=>{
+            it("make order successfully", async()=>{
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                expect(await ding.balanceOf(exchange.address)).to.equals(tokens(10));
+                expect(await exchange.balanceOf(user1.address,ding.address)).to.equals(0);
+                expect(await exchange.orderCount()).to.equals(1);
+            })
+            it("emit order event", async()=>{
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                await expect(exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10)))
+                .to.emit(exchange, "Order")
+                .withArgs(1,user1.address, ding2.address, tokens(100), ding.address, tokens(10), anyValue)
+            })
+            
+        })
+        describe("Sad scenario", ()=>{
+            it("don't have balance to make order",async()=> {
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                await expect(exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10))).to.be.reverted;
             })
         })
     })
