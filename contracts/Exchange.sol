@@ -10,12 +10,14 @@ contract Exchange {
     uint256 public orderCount;
     mapping(address => mapping(address => uint256)) public balanceOf;
     mapping(uint256 => _Order) public orders;
+    mapping(uint256 => bool) public cancelOrders;
 
     event Deposit (address indexed _token,address indexed _user, uint256 _amount, uint256 _balance);
    
     event Withdraw (address indexed _token,address indexed _user, uint256 _amount, uint256 _balance);
 
-    event Order (uint256 _id,address _user, address indexed _tokenGet, uint256 _getAmount, address indexed _tokenGive, uint256 _giveAmount, uint256 _timestamp);
+    event Order (uint256 _id,address indexed _user, address indexed _tokenGet, uint256 _amountGet, address indexed _tokenGive, uint256 _amountGive, uint256 _timestamp);
+    event CancelOrder (uint256 _id,address indexed _user, address indexed _tokenGet, uint256 _amountGet, address indexed _tokenGive, uint256 _amountGive, uint256 _timestamp);
 
     constructor (address _feeAccount, uint256 _feePercentage){
         feeAccount = _feeAccount;
@@ -46,12 +48,21 @@ contract Exchange {
         return true; 
     }
 
-    function makeOrder(address tokenGet, uint256 amountGet, address tokenGive, uint256 amountGive)public returns (bool success){
-        require(balanceOf[msg.sender][tokenGive]>= amountGive,"don't have enough balance to make this order");
-        balanceOf[msg.sender][tokenGive] = balanceOf[msg.sender][tokenGive] - amountGive;
+    function makeOrder(address _tokenGet, uint256 _amountGet, address _tokenGive, uint256 _amountGive)public returns (bool success){
+        require(balanceOf[msg.sender][_tokenGive]>= _amountGive,"don't have enough balance to make this order");
+        balanceOf[msg.sender][_tokenGive] = balanceOf[msg.sender][_tokenGive] - _amountGive;
         orderCount = orderCount + 1;
-        orders[orderCount] = _Order(orderCount, msg.sender, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
-        emit Order(orderCount, msg.sender, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
+        orders[orderCount] = _Order(orderCount, msg.sender, _tokenGet, _amountGet, _tokenGive, _amountGive, block.timestamp);
+        emit Order(orderCount, msg.sender, _tokenGet, _amountGet, _tokenGive, _amountGive, block.timestamp);
+        return true;
+    }
+
+    function cancelOrder(uint256 _id)public returns (bool success){
+        _Order storage order = orders[_id];
+        require(order.id == _id, "no order with this id");
+        require(order.user == msg.sender, "only the owner can cancel the order");
+        cancelOrders[_id] = true;
+        emit CancelOrder(order.id, order.user, order.tokenGet, order.amountGet, order.tokenGive, order.amountGive, block.timestamp);
         return true;
     }
 }

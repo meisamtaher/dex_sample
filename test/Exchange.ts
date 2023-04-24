@@ -133,5 +133,49 @@ describe("Exchange", ()=>{
             })
         })
     })
+    describe("Cancel order",()=>{
+        describe("Happy scenario",()=>{
+            it("cancel order successfully", async()=>{
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).cancelOrder(1);
+                await transaction.wait();
+                expect(await exchange.cancelOrders(1)).to.equals(true);
+            })
+            it("emit cancel order event", async()=>{
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                await expect(exchange.connect(user1).cancelOrder(1))
+                .to.emit(exchange, "CancelOrder")
+                .withArgs(1,user1.address, ding2.address, tokens(100), ding.address, tokens(10), anyValue)
+            })  
+        })
+        describe("Sad scenario", ()=>{
+            it("no order with this id",async()=> {
+                const{ding, ding2, exchange, user1} = await loadFixture(deployExchange);
+                await expect(exchange.connect(user1).cancelOrder(1)).to.be.reverted;
+            })
+            it("only the owner can cancel the order",async()=> {
+                const{ding, ding2, exchange, user1, user2} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                await expect(exchange.connect(user2).cancelOrder(1)).to.be.reverted;
+            })
+        })
+    })
 
 })
