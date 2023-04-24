@@ -15,7 +15,7 @@ contract Exchange {
    
     event Withdraw (address indexed _token,address indexed _user, uint256 _amount, uint256 _balance);
 
-    event Order (uint256 indexed id, address indexed tokenGet, uint256 getAmount, address indexed tokenGive, uint256 giveAmount, uint256 timestamp);
+    event Order (uint256 _id,address _user, address indexed _tokenGet, uint256 _getAmount, address indexed _tokenGive, uint256 _giveAmount, uint256 _timestamp);
 
     constructor (address _feeAccount, uint256 _feePercentage){
         feeAccount = _feeAccount;
@@ -23,6 +23,7 @@ contract Exchange {
     }
     struct _Order{
         uint256 id;
+        address user;
         address tokenGet;
         uint256 amountGet;
         address tokenGive;
@@ -49,8 +50,8 @@ contract Exchange {
         require(balanceOf[msg.sender][tokenGive]>= amountGive,"don't have enough balance to make this order");
         balanceOf[msg.sender][tokenGive] = balanceOf[msg.sender][tokenGive] - amountGive;
         orderCount = orderCount + 1;
-        orders[orderCount] = _Order(orderCount, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
-        emit Order(orderCount, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
+        orders[orderCount] = _Order(orderCount, msg.sender, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
+        emit Order(orderCount, msg.sender, tokenGet, amountGet, tokenGive, amountGive, block.timestamp);
         return true;
     }
 }
