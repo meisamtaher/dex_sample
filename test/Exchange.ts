@@ -16,7 +16,7 @@ describe("Exchange", ()=>{
         const ding2 = await Ding.deploy("Mock USDT", "mUSDT", "0.1.0", 1000000)
         const transaction = await ding.connect(owner).transfer(user1.address,tokens(100))
         await transaction.wait();
-        const transaction2 = await ding.connect(owner).transfer(user2.address,tokens(100))
+        const transaction2 = await ding2.connect(owner).transfer(user2.address,tokens(100))
         await transaction2.wait();
         return {exchange, Exchange, owner, user1, user2, feeAccount, feePercentage, Ding, ding,ding2}
     }
@@ -175,7 +175,129 @@ describe("Exchange", ()=>{
                 await transaction.wait();
                 await expect(exchange.connect(user2).cancelOrder(1)).to.be.reverted;
             })
+            it("can't cancel an already canceled order",async()=> {
+                const{ding, ding2, exchange, user1, user2} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).cancelOrder(1);
+                await transaction.wait();
+                await expect(exchange.connect(user1).cancelOrder(1)).to.be.reverted;
+            })
+            it("can't cancel a filled order",async()=> {
+                const{ding, ding2, exchange, user1, user2, feeAccount, feePercentage} = await loadFixture(deployExchange);
+                const amount1 = 10, amount2 = 50;
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(amount1));
+                await transaction.wait();
+                var transaction = await ding2.connect(user2).approve(exchange.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).depositToken(ding2.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(amount2), ding.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).fillOrder(1);
+                await transaction.wait();
+                await expect(exchange.connect(user1).cancelOrder(1)).to.be.reverted;
+            })
         })
     })
+    describe("Fill order",()=>{
+        describe("Happy scenario",()=>{
+            it("Fill order successfully", async()=>{
+                const{ding, ding2, exchange, user1, user2, feeAccount, feePercentage} = await loadFixture(deployExchange);
+                const amount1 = 10, amount2 = 50;
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(amount1));
+                await transaction.wait();
+                var transaction = await ding2.connect(user2).approve(exchange.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).depositToken(ding2.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(amount2), ding.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).fillOrder(1);
+                await transaction.wait();
+                expect(await exchange.fillOrders(1)).to.equals(true);
+                expect(await exchange.balanceOf(user1.address,ding.address)).to.be.equals(tokens(0));
+                expect(await exchange.balanceOf(user2.address,ding.address)).to.be.equals(tokens(amount1));
+                expect(await exchange.balanceOf(user1.address,ding2.address)).to.be.equals(tokens(amount2));
+                expect(await exchange.balanceOf(user2.address,ding2.address)).to.be.equals(tokens(0));  
+                expect(await exchange.balanceOf(feeAccount.address,ding2.address)).to.be.equals(tokens(amount2*feePercentage/100));  
 
+            })
+            it("emit fill order event", async()=>{
+                const{ding, ding2, exchange, user1, user2, feeAccount, feePercentage} = await loadFixture(deployExchange);
+                const amount1 = 10, amount2 = 50;
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(amount1));
+                await transaction.wait();
+                var transaction = await ding2.connect(user2).approve(exchange.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).depositToken(ding2.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(amount2), ding.address, tokens(amount1));
+                await transaction.wait();
+                expect(await exchange.connect(user2).fillOrder(1))
+                .to.emit(exchange, "FillOrder")
+                .withArgs(1,user1.address, user2.address, ding2.address, tokens(amount2), ding.address, tokens(amount1), anyValue);
+            })  
+        })
+        describe("Sad scenario", ()=>{
+            it("no order with this id",async()=> {
+                const{ding, ding2, exchange, user1, user2} = await loadFixture(deployExchange);
+                await expect(exchange.connect(user2).fillOrder(1)).to.be.reverted;
+            })
+            it("can't fill a canceled order",async()=> {
+                const{ding, ding2, exchange, user1, user2} = await loadFixture(deployExchange);
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(100), ding.address, tokens(10));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).cancelOrder(1);
+                await transaction.wait();
+                await expect(exchange.connect(user2).fillOrder(1)).to.be.reverted;
+            })
+            it("no enough balance to fill this order",async()=> {
+                const{ding, ding2, exchange, user1, user2, feeAccount, feePercentage} = await loadFixture(deployExchange);
+                const amount1 = 10, amount2 = 50;
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(amount1));
+                await transaction.wait();
+                var transaction = await ding2.connect(user2).approve(exchange.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).depositToken(ding2.address, tokens(amount2));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(amount2), ding.address, tokens(amount1));
+                await transaction.wait();
+                await expect(exchange.connect(user2).fillOrder(1)).to.be.reverted;
+            })
+            it("can't fill an already filled order",async()=> {
+                const{ding, ding2, exchange, user1, user2, feeAccount, feePercentage} = await loadFixture(deployExchange);
+                const amount1 = 10, amount2 = 50;
+                var transaction = await ding.connect(user1).approve(exchange.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).depositToken(ding.address, tokens(amount1));
+                await transaction.wait();
+                var transaction = await ding2.connect(user2).approve(exchange.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).depositToken(ding2.address, tokens(amount2+(amount2*feePercentage/100)));
+                await transaction.wait();
+                transaction = await exchange.connect(user1).makeOrder(ding2.address, tokens(amount2), ding.address, tokens(amount1));
+                await transaction.wait();
+                transaction = await exchange.connect(user2).fillOrder(1);
+                await transaction.wait();
+                await expect(exchange.connect(user2).fillOrder(1)).to.be.reverted;
+            })
+        })
+    })
 })
